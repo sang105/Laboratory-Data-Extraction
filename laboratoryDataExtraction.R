@@ -43,23 +43,24 @@ dbDisconnect(con)
 # Create an empty dataframe to store the combined results
 combined_data <- data.frame()
 
+# Connect to the database
+con <- dbConnect(RSQLite::SQLite(),"www/SpectraxMaxDB.sqlite")
+
 # Loop through the table names and query data
 for (table_name in table_names$name) {
-  # Connect to the database
-  con <- dbConnect(RSQLite::SQLite(),"www/SpectraxMaxDB.sqlite")
-  
+
   # Query data from the current table
   query <- paste0("SELECT * FROM ", "'",table_name,"'")
   
   # Save result to the data varibale
   data <- dbGetQuery(con, query)
   
-  # Close the database connection
-  dbDisconnect(con)
-  
   # Combine the data with the existing results
   combined_data <- bind_rows(combined_data, data)
 }
+
+# Close the database connection
+dbDisconnect(con)
 
 ######## DATA MANAGEMENT #######
 # Merge MS SQL with SQLite data to use by shiny for data visualization
