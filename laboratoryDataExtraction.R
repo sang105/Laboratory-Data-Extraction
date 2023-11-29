@@ -1,8 +1,12 @@
-###### R script to query and merge data and save as RDS file for Shiny to read from file ######
+####################################################################################
+## R script to query and merge data from two database to save output as RDS file ###
+## to read and visualize data on Shiny Applicationt user-interphase              ###
+####################################################################################
 library(DBI)
 library(data.table)
 library(RSQLite)
 library(dplyr)
+library(config)
 
 # Get MS SQL Database credentials from config.yml file 
 dw = config::get("datawarehouse")
@@ -18,33 +22,27 @@ con_sql <- DBI::dbConnect(
 )
 
 # Query from MS SQL Database table for all laboratory data
-data_sql <- dbGetQuery(con_sql, "SELECT [PlateID]
+data_sql <- DBI::dbGetQuery(con_sql, "SELECT [PlateID]
           ,[ReducedValue]
           ,[WellName]
           ,[Row_Number]
           ,[Column_Number]
           ,[ReadMode]
           ,[FileName] FROM LabData")
-dbDisconnect(con_sql)
+DBI::dbDisconnect(con_sql)
 
 # Convert the columns from the extracted dataset to integer
 data_sql <- data_sql %>%
-  mutate_at(c("Row_Number", "Column_Number"), as.integer)
+  dplyr::mutate_at(c("Row_Number", "Column_Number"), as.integer)
 
 # Connect to SQLite Database
-con <- dbConnect(RSQLite::SQLite(),"www/SpectraxMaxDB.sqlite")
+con <- DBI::dbConnect(RSQLite::SQLite(),"www/SpectraxMaxDB.sqlite")
 
 # Get all tables from SQLite Database with Experiments table being the exception
-table_names <- dbGetQuery(con, "SELECT name FROM sqlite_master WHERE type='table' AND name != 'Experiments'")
-
-# Close the database connection
-dbDisconnect(con)
+table_names <- DBI::dbGetQuery(con, "SELECT name FROM sqlite_master WHERE type='table' AND name != 'Experiments'")
 
 # Create an empty dataframe to store the combined results
 combined_data <- data.frame()
-
-# Connect to the database
-con <- dbConnect(RSQLite::SQLite(),"www/SpectraxMaxDB.sqlite")
 
 # Loop through the table names and query data
 for (table_name in table_names$name) {
@@ -53,17 +51,18 @@ for (table_name in table_names$name) {
   query <- paste0("SELECT * FROM ", "'",table_name,"'")
   
   # Save result to the data varibale
-  data <- dbGetQuery(con, query)
+  data <- DBI::dbGetQuery(con, query)
   
   # Combine the data with the existing results
-  combined_data <- bind_rows(combined_data, data)
+  combined_data <- dplyr::bind_rows(combined_data, data)
 }
 
 # Close the database connection
-dbDisconnect(con)
+DBI::dbDisconnect(con)
 
 ######## DATA MANAGEMENT #######
-# Merge MS SQL with SQLite data to use by shiny for data visualization
+# Merge MS SQL and SQLite data to use by shiny for data visualization
+# Data is merged because MS SQL database stores plate readout values while SQLite database stores plate metadata
 df1 <- merge(x = combined_data, y = data_sql, by = c("PlateID", "Row_Number", "Column_Number", "FileName"))
 
 # Trim all white space on the column named drugs and convert values to uppercase
